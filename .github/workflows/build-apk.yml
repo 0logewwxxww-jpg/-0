@@ -1,0 +1,54 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Build web application
+        run: npm run build
+      - name: Create Android project when absent
+        run: |
+          if [ ! -d android ]; then
+            npx cap add android
+          fi
+      - name: Sync Capacitor Android
+        run: npx cap sync android
+      - name: Build Debug APK
+        working-directory: android
+        run: ./gradlew --no-daemon assembleDebug
+      - name: Prepare Debug APK
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk ImamAlKadhimSchool-debug.apk
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ImamAlKadhimSchool-apk-${{ github.run_number }}
+          path: ImamAlKadhimSchool-debug.apk
+          if-no-files-found: error
+          retention-days: 30
